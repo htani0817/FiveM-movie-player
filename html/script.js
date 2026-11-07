@@ -40,7 +40,7 @@ const shareRequestDecline = document.getElementById('share-request-decline');
 const toastContainer = document.getElementById('toast-container');
 
 // リソース名は直書きせず、NUI が持っている名前を使う
-const RESOURCE_NAME = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'tani-watch';
+const RESOURCE_NAME = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'movie-player';
 
 const POST_TIMEOUT_MS = 15000;       // 再生開始は DUI の準備待ちを含むので長めに取る
 const PLAYER_LIST_REFRESH_MS = 2000; // 付近プレイヤー一覧の自動更新間隔

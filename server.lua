@@ -1,4 +1,4 @@
--- tani-watch サーバースクリプト
+-- movie-player サーバースクリプト
 -- 画面共有イベントの検証と中継
 -- クライアントから届く値は全て信用せず、送信者・URL・共有先・頻度をサーバ側で検証する
 
@@ -15,7 +15,7 @@ local RESPONSE_STATUSES = {
 
 -- 送信者へ通知を送る（kind: 'error' | 'info'）
 local function notify(target, kind, message)
-    TriggerClientEvent('tani-watch:notify', target, kind, message)
+    TriggerClientEvent('movie-player:notify', target, kind, message)
 end
 
 -- 2人のプレイヤーが距離内にいるかを返す
@@ -41,14 +41,14 @@ end
 
 -- 画面共有: クライアント → サーバー
 -- 引数は url と targetPlayers のみ。送信者の名前と ID は source から取得する
-RegisterNetEvent('tani-watch:shareVideo', function(url, targetPlayers)
+RegisterNetEvent('movie-player:shareVideo', function(url, targetPlayers)
     local src = tonumber(source)
     if not src then
         return
     end
 
     -- URL（正規化したものだけを中継する）
-    local media, reason = TaniWatch.ParseMedia(url)
+    local media, reason = MoviePlayer.ParseMedia(url)
     if not media then
         notify(src, 'error', reason)
         return
@@ -96,23 +96,23 @@ RegisterNetEvent('tani-watch:shareVideo', function(url, targetPlayers)
 
     lastShareAt[src] = now
 
-    local senderName = TaniWatch.SanitizeName(GetPlayerName(tostring(src)))
-    TaniWatch.Log(('player %d shares %s to %d players'):format(src, media.platform, #targets))
+    local senderName = MoviePlayer.SanitizeName(GetPlayerName(tostring(src)))
+    MoviePlayer.Log(('player %d shares %s to %d players'):format(src, media.platform, #targets))
 
     for _, targetId in ipairs(targets) do
         pendingOffers[targetId] = {
             from = src,
             expires = now + Config.ShareRequestTimeoutMs + 5000,
         }
-        TriggerClientEvent('tani-watch:receiveShare', targetId, media.url, senderName, src)
+        TriggerClientEvent('movie-player:receiveShare', targetId, media.url, senderName, src)
     end
 
-    TriggerClientEvent('tani-watch:shareResult', src, #targets, skipped)
+    TriggerClientEvent('movie-player:shareResult', src, #targets, skipped)
 end)
 
 -- 受信者の応答（視聴する / 辞退 / 時間切れ）を送信者へ伝える
 -- 直前にこの受信者へ共有した送信者がいる場合だけ有効
-RegisterNetEvent('tani-watch:shareResponse', function(status)
+RegisterNetEvent('movie-player:shareResponse', function(status)
     local src = tonumber(source)
     if not src then
         return
@@ -136,8 +136,8 @@ RegisterNetEvent('tani-watch:shareResponse', function(status)
         return
     end
 
-    local receiverName = TaniWatch.SanitizeName(GetPlayerName(tostring(src)))
-    TriggerClientEvent('tani-watch:shareReply', offer.from, receiverName, status)
+    local receiverName = MoviePlayer.SanitizeName(GetPlayerName(tostring(src)))
+    TriggerClientEvent('movie-player:shareReply', offer.from, receiverName, status)
 end)
 
 -- 退出したプレイヤーの状態を片付ける（サーバーIDは再利用されるため）
@@ -159,6 +159,6 @@ end)
 -- リソース開始時のログ
 AddEventHandler('onResourceStart', function(resourceName)
     if GetCurrentResourceName() == resourceName then
-        print("[tani-watch] Resource started - Screen sharing enabled")
+        print("[movie-player] Resource started")
     end
 end)

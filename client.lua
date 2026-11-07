@@ -1,4 +1,4 @@
--- tani-watch クライアントスクリプト
+-- movie-player クライアントスクリプト
 -- DUI で動画を描画し、NUI（html/index.html）で操作画面を出す
 
 -- ================== 状態 ==================
@@ -22,11 +22,11 @@ local CONTROLS_BLOCKED_WHILE_KEEPING_INPUT = {
 local duiObject = nil
 local duiPageReady = false  -- player.html が準備完了を通知した（または待ち時間を過ぎた）か
 local runtimeTxd = nil
-local TXD_NAME = 'tani_watch_dict'
-local TEXTURE_NAME = 'tani_watch_txd'
+local TXD_NAME = 'movie_player_dict'
+local TEXTURE_NAME = 'movie_player_txd'
 
 -- 共有の受信
-local KVP_RECEIVE = 'tani-watch:receiveShare'
+local KVP_RECEIVE = 'movie-player:receiveShare'
 local receiveEnabled = GetResourceKvpString(KVP_RECEIVE) ~= '0' -- 未設定なら受け取る
 local blockedSenders = {}   -- [送信者のサーバーID] = true（再接続するまで有効）
 local pendingShare = nil    -- 承諾待ちの共有 { media, from, fromId, seq }
@@ -53,7 +53,7 @@ local function registerCallback(name, handler)
     RegisterNUICallback(name, function(data, cb)
         local ok, result = pcall(handler, type(data) == 'table' and data or {})
         if not ok then
-            print(('[tani-watch] callback %s error: %s'):format(name, tostring(result)))
+            print(('[movie-player] callback %s error: %s'):format(name, tostring(result)))
             cb({ success = false, message = '内部エラーが発生しました' })
             return
         end
@@ -87,7 +87,7 @@ local function createDui()
     end
     CreateRuntimeTextureFromDuiHandle(runtimeTxd, TEXTURE_NAME, GetDuiHandle(duiObject))
 
-    TaniWatch.Log('DUI Player created')
+    MoviePlayer.Log('DUI Player created')
     return true
 end
 
@@ -223,7 +223,7 @@ registerCallback('close', function()
 end)
 
 registerCallback('playVideo', function(data)
-    local media, reason = TaniWatch.ParseMedia(data.url)
+    local media, reason = MoviePlayer.ParseMedia(data.url)
     if not media then
         return { success = false, message = reason }
     end
@@ -271,7 +271,7 @@ local function getNearbyPlayers()
                 if distance <= Config.NearbyDistance then
                     players[#players + 1] = {
                         id = GetPlayerServerId(playerId),
-                        name = TaniWatch.SanitizeName(GetPlayerName(playerId)),
+                        name = MoviePlayer.SanitizeName(GetPlayerName(playerId)),
                         distance = distance,
                     }
                 end
@@ -312,7 +312,7 @@ registerCallback('getNearbyPlayers', function()
 end)
 
 registerCallback('shareVideo', function(data)
-    local media, reason = TaniWatch.ParseMedia(data.url)
+    local media, reason = MoviePlayer.ParseMedia(data.url)
     if not media then
         return { success = false, message = reason }
     end
@@ -328,12 +328,12 @@ registerCallback('shareVideo', function(data)
         return { success = false, message = err }
     end
 
-    TriggerServerEvent('tani-watch:shareVideo', media.url, targets)
+    TriggerServerEvent('movie-player:shareVideo', media.url, targets)
     return { success = true, platform = media.platform }
 end)
 
 -- サーバーからの送信結果
-RegisterNetEvent('tani-watch:shareResult', function(sent, skipped)
+RegisterNetEvent('movie-player:shareResult', function(sent, skipped)
     sent = tonumber(sent) or 0
     skipped = tonumber(skipped) or 0
 
@@ -345,7 +345,7 @@ RegisterNetEvent('tani-watch:shareResult', function(sent, skipped)
 end)
 
 -- サーバーからの通知（検証エラーなど）
-RegisterNetEvent('tani-watch:notify', function(kind, message)
+RegisterNetEvent('movie-player:notify', function(kind, message)
     if type(message) ~= 'string' then
         return
     end
@@ -353,7 +353,7 @@ RegisterNetEvent('tani-watch:notify', function(kind, message)
 end)
 
 -- 受信者の応答
-RegisterNetEvent('tani-watch:shareReply', function(name, status)
+RegisterNetEvent('movie-player:shareReply', function(name, status)
     if type(name) ~= 'string' or type(status) ~= 'string' then
         return
     end
@@ -372,7 +372,7 @@ end)
 -- ================== 画面共有（受信） ==================
 
 local function respondShare(status)
-    TriggerServerEvent('tani-watch:shareResponse', status)
+    TriggerServerEvent('movie-player:shareResponse', status)
 end
 
 -- 共有された動画を再生し、結果を送信者へ返す
@@ -420,12 +420,12 @@ local function setReceiveEnabled(enabled)
 end
 
 -- サーバー経由で届いた共有。承諾確認なしに再生や画面の奪取はしない
-RegisterNetEvent('tani-watch:receiveShare', function(url, fromName, fromId)
-    fromName = type(fromName) == 'string' and TaniWatch.SanitizeName(fromName) or '不明'
+RegisterNetEvent('movie-player:receiveShare', function(url, fromName, fromId)
+    fromName = type(fromName) == 'string' and MoviePlayer.SanitizeName(fromName) or '不明'
     fromId = tonumber(fromId)
 
     -- 受け取る側でも検証し、正規化したURLだけを使う
-    local media = TaniWatch.ParseMedia(url)
+    local media = MoviePlayer.ParseMedia(url)
     if not media then
         respondShare('invalid')
         return
@@ -477,16 +477,16 @@ registerCallback('setReceiveShare', function(data)
 end)
 
 -- キー操作（NUI にフォーカスが無いとき用。変更は FiveM のキー設定から）
-RegisterCommand('tani-watch-accept', function()
+RegisterCommand('movie-player-accept', function()
     acceptPendingShare()
 end, false)
 
-RegisterCommand('tani-watch-decline', function()
+RegisterCommand('movie-player-decline', function()
     declinePendingShare('declined')
 end, false)
 
-RegisterKeyMapping('tani-watch-accept', '共有された動画を視聴する', 'keyboard', Config.AcceptKey)
-RegisterKeyMapping('tani-watch-decline', '共有された動画を辞退する', 'keyboard', Config.DeclineKey)
+RegisterKeyMapping('movie-player-accept', '共有された動画を視聴する', 'keyboard', Config.AcceptKey)
+RegisterKeyMapping('movie-player-decline', '共有された動画を辞退する', 'keyboard', Config.DeclineKey)
 
 -- 共有の受信を切り替える
 RegisterCommand('watchdnd', function()

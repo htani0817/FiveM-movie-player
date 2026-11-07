@@ -1,4 +1,4 @@
--- tani-watch 設定ファイル（client / server の両方から読み込まれる）
+-- movie-player 設定ファイル（client / server の両方から読み込まれる）
 Config = {}
 
 -- デバッグログ（true にすると client / server で詳細ログを出す）
