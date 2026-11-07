@@ -1,4 +1,4 @@
-# Tani Watch - FiveM YouTube/Twitch ビデオプレイヤー
+# Movie Player - FiveM YouTube/Twitch ビデオプレイヤー
 
 FiveM用のビデオ視聴スクリプトです。ゲーム内でYouTubeとTwitchの動画を視聴・共有できます。
 
@@ -16,12 +16,14 @@ FiveM用のビデオ視聴スクリプトです。ゲーム内でYouTubeとTwitc
 
 ## インストール方法
 
-1. `tani-watch` フォルダを `resources` ディレクトリにコピー
+1. このリポジトリの中身を `movie-player` という名前のフォルダにして、`resources` ディレクトリにコピー
 2. `server.cfg` に以下を追加:
    ```
-   ensure tani-watch
+   ensure movie-player
    ```
 3. サーバーを再起動
+
+旧名の `tani-watch` から乗り換えるときは、古い `tani-watch` フォルダを消して（または `server.cfg` の `ensure tani-watch` を外して）から入れてください。両方を同時に動かすと、`/watch` などのコマンドが重なります。キー設定（承諾・辞退のキー）と「共有を受け取る」の設定は、リソース名が変わるため初期値に戻ります。
 
 ## 使用方法
 
@@ -96,7 +98,7 @@ URLは「許可したホストと形式に完全一致するもの」だけ受�
 
 ## 設定
 
-`config.lua` の値を変更することでカスタマイズできます（変更後は `restart tani-watch`）。
+`config.lua` の値を変更することでカスタマイズできます（変更後は `restart movie-player`）。
 
 | 設定 | 初期値 | 内容 |
 | --- | --- | --- |
@@ -150,7 +152,7 @@ URLは「許可したホストと形式に完全一致するもの」だけ受�
 ## ファイル構成
 
 ```
-tani-watch/
+movie-player/
 ├── fxmanifest.lua    # リソース定義
 ├── config.lua        # 設定（client / server 共通）
 ├── shared.lua        # URL検証などの共通処理（client / server 共通）
@@ -179,6 +181,10 @@ tani-watch/
 - YouTube と Twitch の埋め込みプレイヤーは、再生中に広告が表示されることがあります。Cfx.re の Creator Platform License Agreement（3.1 項 (7) が、ゲーム内への第三者の広告の組み込みを禁じています）との関係は、サーバー運営者が確認してください
 
 ## 更新履歴
+
+### 3.0.0
+- 【名前の変更】名前を「Tani Watch」から「Movie Player」に変えた。リソース名は `movie-player`（`ensure movie-player`）、GitHub のリポジトリは `FiveM-movie-player`。イベント名・キー設定のコマンド名（`movie-player-accept` / `movie-player-decline`）も新しい名前に揃えた。ゲーム内のコマンド（`/watch` など）は変えていない
+- 旧名の `tani-watch` と同時に動かさないでください（乗り換えの手順は「インストール方法」）
 
 ### 2.3.0
 - 【UI の見直し】ゲーム画面の邪魔をしないよう、面を無彩色にし、色は琥珀色の1色だけにした。紫・緑のグラデーションと光彩、ホバーで浮く動きをやめた。主役は動画で、視聴画面の表示は「● YouTube 再生中」だけの控えめな表示にした

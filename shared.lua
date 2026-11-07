@@ -1,7 +1,7 @@
--- tani-watch 共通処理（client / server の両方から読み込まれる）
+-- movie-player 共通処理（client / server の両方から読み込まれる）
 -- URLの検証は必ずここを通す。受け取った文字列をそのまま信用せず、
 -- 許可したホストと形式に一致したものだけを「正規化したURL」に作り直して使う。
-TaniWatch = {}
+MoviePlayer = {}
 
 -- 許可するホスト（完全一致。部分一致は使わない）
 local YOUTUBE_HOSTS = {
@@ -28,14 +28,14 @@ local MSG_UNSUPPORTED = 'YouTubeまたはTwitchのURLを入力してください
 local MSG_BAD_FORMAT = 'URLの形式が正しくありません（動画・配信・クリップのURLを指定してください）'
 
 -- デバッグ時だけログを出す
-function TaniWatch.Log(...)
+function MoviePlayer.Log(...)
     if Config.Debug then
-        print('[tani-watch]', ...)
+        print('[movie-player]', ...)
     end
 end
 
 -- 表示名を安全な長さ・文字に整える
-function TaniWatch.SanitizeName(name)
+function MoviePlayer.SanitizeName(name)
     name = tostring(name or '')
     name = name:gsub('%c', '')
     -- UTF-8 の途中で切らないように、33文字目の位置までで切り詰める
@@ -144,7 +144,7 @@ end
 -- URL文字列を検証して、正規化したメディア情報を返す
 -- 成功: { platform = 'youtube'|'twitch', kind = 'video'|'channel'|'clip', id = '...', url = '正規化したURL' }
 -- 失敗: nil, 'エラーメッセージ'
-function TaniWatch.ParseMedia(url)
+function MoviePlayer.ParseMedia(url)
     if type(url) ~= 'string' then
         return nil, 'URLが不正です'
     end
