@@ -56,11 +56,24 @@
             const container = document.getElementById('player-container');
             // リソース名はホスト名（cfx-nui-<リソース名>）から求める
             const resourceName = location.hostname.replace(/^cfx-nui-/, '');
+            // どの DUI か（main = 視聴画面、s1・s2… = 空間スクリーンの枠）。Lua への通知に付ける
+            const slotParam = new URLSearchParams(location.search).get('slot') || 'main';
+            const slot = /^[a-z0-9-]{1,16}$/.test(slotParam) ? slotParam : 'main';
+
+            const PROGRESS_INTERVAL_MS = 1000;
 
             let player = null;
-            let playerType = null;
+            let playerType = null;   // 'youtube' | 'twitch' | 'twitch-clip'
+            let playerReady = false;
+            let currentMedia = null;
             let currentVolume = 50;
             let playToken = 0; // 古い非同期処理の結果を捨てるための通し番号
+
+            // 同期の目標（{ playing, position, at }。at は受け取った時刻）。null なら同期しない
+            let syncTarget = null;
+            let syncTolerance = 2;
+            let syncTimer = null;
+            let syncIntervalMs = 3000;
 
             const YOUTUBE_ERRORS = {
                 2: 'URLが正しくありません',
@@ -72,11 +85,12 @@
 
             // Lua へ通知する（DUI からのコールバックが使えない環境では何もしない）
             function notifyLua(name, body) {
+                const payload = Object.assign({ slot: slot }, body || {});
                 try {
                     fetch('https://' + resourceName + '/' + name, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-                        body: JSON.stringify(body || {})
+                        body: JSON.stringify(payload)
                     }).catch(function () {});
                 } catch (e) {
                     // 通知できなくても再生には影響させない
@@ -197,12 +211,19 @@
                 }
                 player = null;
                 playerType = null;
+                playerReady = false;
             }
 
             function createMount() {
                 const mount = document.createElement('div');
                 mount.id = 'player';
                 container.replaceChildren(mount);
+            }
+
+            function onPlayerReady() {
+                playerReady = true;
+                applySync();
+                reportProgress();
             }
 
             function startYouTube(media, token) {
@@ -225,6 +246,11 @@
                             event.target.setVolume(currentVolume);
                             if (currentVolume > 0) event.target.unMute();
                             event.target.playVideo();
+                            onPlayerReady();
+                        },
+                        onStateChange: function () {
+                            if (token !== playToken) return;
+                            reportProgress();
                         },
                         onError: function (event) {
                             if (token !== playToken) return;
@@ -240,7 +266,7 @@
                 const parent = location.hostname;
 
                 if (media.kind === 'clip') {
-                    // クリップは iframe で埋め込む（音量の操作はできない）
+                    // クリップは iframe で埋め込む（音量・再生位置の操作はできない）
                     const iframe = document.createElement('iframe');
                     iframe.src = 'https://clips.twitch.tv/embed?clip=' + encodeURIComponent(media.id) +
                         '&parent=' + encodeURIComponent(parent) + '&autoplay=true';
@@ -248,6 +274,7 @@
                     iframe.allowFullscreen = true;
                     container.replaceChildren(iframe);
                     playerType = 'twitch-clip';
+                    reportProgress();
                     return;
                 }
 
@@ -272,17 +299,26 @@
                     if (token !== playToken) return;
                     player.setVolume(currentVolume / 100);
                     player.setMuted(currentVolume === 0);
+                    onPlayerReady();
+                });
+                player.addEventListener(Twitch.Player.PLAY, function () {
+                    if (token === playToken) reportProgress();
+                });
+                player.addEventListener(Twitch.Player.PAUSE, function () {
+                    if (token === playToken) reportProgress();
                 });
             }
 
             async function playMedia(media) {
                 const token = ++playToken;
                 destroyPlayer();
+                currentMedia = null;
 
                 if (!isValidMedia(media)) {
                     showError('再生できないURLです');
                     return;
                 }
+                currentMedia = media;
 
                 showStatus('LOADING...');
 
@@ -316,6 +352,7 @@
                     if (playerType === 'youtube' && player.setVolume) {
                         player.setVolume(currentVolume);
                         if (currentVolume > 0) player.unMute();
+                        else player.mute();
                     } else if (playerType === 'twitch' && player.setVolume) {
                         player.setVolume(currentVolume / 100);
                         player.setMuted(currentVolume === 0);
@@ -328,7 +365,155 @@
             function stopVideo() {
                 playToken++;
                 destroyPlayer();
+                currentMedia = null;
+                syncTarget = null;
                 showStatus('NO SIGNAL');
+                reportProgress();
+            }
+
+            // ---------- 再生位置（取得・操作） ----------
+
+            // ライブ配信か（ライブは再生位置を合わせない）
+            function isLive() {
+                if (!currentMedia) return false;
+                if (currentMedia.platform === 'twitch') return currentMedia.kind === 'channel';
+                if (playerType === 'youtube' && player && playerReady && player.getVideoData) {
+                    try {
+                        const data = player.getVideoData();
+                        return !!(data && data.isLive === true);
+                    } catch (e) {
+                        return false;
+                    }
+                }
+                return false;
+            }
+
+            // 再生位置を操作できるプレイヤーか（Twitch のクリップとライブは不可）
+            function isSeekable() {
+                return !!(player && playerReady && (playerType === 'youtube' || playerType === 'twitch') && !isLive());
+            }
+
+            function getTime() {
+                if (!player || !playerReady) return null;
+                try {
+                    const value = player.getCurrentTime();
+                    return Number.isFinite(value) ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function getDuration() {
+                if (!player || !playerReady) return null;
+                try {
+                    const value = player.getDuration();
+                    return Number.isFinite(value) && value > 0 ? value : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function isPaused() {
+                if (!player || !playerReady) return false;
+                try {
+                    if (playerType === 'youtube') {
+                        const state = player.getPlayerState();
+                        return state === YT.PlayerState.PAUSED || state === YT.PlayerState.CUED;
+                    }
+                    if (playerType === 'twitch') return player.isPaused();
+                } catch (e) {
+                    return false;
+                }
+                return false;
+            }
+
+            function isEnded() {
+                if (!player || !playerReady) return false;
+                try {
+                    if (playerType === 'youtube') return player.getPlayerState() === YT.PlayerState.ENDED;
+                    if (playerType === 'twitch' && player.getEnded) return player.getEnded();
+                } catch (e) {
+                    return false;
+                }
+                return false;
+            }
+
+            function seekTo(seconds) {
+                if (!isSeekable()) return;
+                const duration = getDuration();
+                let target = Math.max(0, seconds);
+                if (duration) target = Math.min(target, Math.max(0, duration - 0.5));
+                try {
+                    if (playerType === 'youtube') player.seekTo(target, true);
+                    else player.seek(target);
+                } catch (e) {
+                    console.log('Error seeking:', e);
+                }
+            }
+
+            function setPaused(paused) {
+                if (!player || !playerReady || playerType === 'twitch-clip') return;
+                try {
+                    if (playerType === 'youtube') {
+                        if (paused) player.pauseVideo(); else player.playVideo();
+                    } else {
+                        if (paused) player.pause(); else player.play();
+                    }
+                } catch (e) {
+                    console.log('Error pausing:', e);
+                }
+            }
+
+            // 同期の目標に合わせる（ずれが許容範囲を超えたときだけ位置を動かす）
+            function applySync() {
+                if (!syncTarget || !isSeekable()) return;
+
+                const expected = syncTarget.playing
+                    ? syncTarget.position + (performance.now() - syncTarget.at) / 1000
+                    : syncTarget.position;
+                const duration = getDuration();
+                const current = getTime();
+
+                if (current !== null && !(duration && expected >= duration && isEnded())) {
+                    if (Math.abs(current - expected) > syncTolerance) {
+                        seekTo(expected);
+                    }
+                }
+                if (syncTarget.playing && isPaused()) {
+                    setPaused(false);
+                } else if (!syncTarget.playing && !isPaused()) {
+                    setPaused(true);
+                }
+            }
+
+            function setSyncTarget(data) {
+                const position = Number(data.position);
+                if (!Number.isFinite(position) || typeof data.playing !== 'boolean') return;
+                syncTarget = { playing: data.playing, position: Math.max(0, position), at: performance.now() };
+                applySync();
+            }
+
+            // 再生位置と状態を Lua に知らせる（枠のシークバーと、ホストの再生位置の報告に使う）
+            function reportProgress() {
+                notifyLua('duiProgress', {
+                    active: !!currentMedia,
+                    ready: playerReady || playerType === 'twitch-clip',
+                    time: getTime(),
+                    duration: getDuration(),
+                    paused: isPaused(),
+                    live: isLive(),
+                    seekable: isSeekable(),
+                    controllable: !!(player && playerReady && playerType !== 'twitch-clip')
+                });
+            }
+
+            setInterval(function () {
+                if (currentMedia) reportProgress();
+            }, PROGRESS_INTERVAL_MS);
+
+            function restartSyncTimer() {
+                clearInterval(syncTimer);
+                syncTimer = setInterval(applySync, syncIntervalMs);
             }
 
             // ---------- メッセージ受信（Lua → DUI） ----------
@@ -347,14 +532,48 @@
                 }
                 if (!data || typeof data !== 'object') return;
 
-                if (data.action === 'play') {
-                    playMedia(data.media);
-                } else if (data.action === 'stop') {
-                    stopVideo();
-                } else if (data.action === 'volume') {
-                    setVolume(data.volume);
+                switch (data.action) {
+                    case 'play':
+                        syncTarget = null;
+                        playMedia(data.media);
+                        break;
+                    case 'stop':
+                        stopVideo();
+                        break;
+                    case 'volume':
+                        setVolume(data.volume);
+                        break;
+                    case 'syncConfig':
+                        if (Number.isFinite(data.tolerance) && data.tolerance > 0) syncTolerance = data.tolerance;
+                        if (Number.isFinite(data.intervalMs) && data.intervalMs >= 500) {
+                            syncIntervalMs = data.intervalMs;
+                            restartSyncTimer();
+                        }
+                        break;
+                    case 'sync':
+                        setSyncTarget(data);
+                        break;
+                    case 'unsync':
+                        syncTarget = null;
+                        break;
+                    case 'pause':
+                        setPaused(true);
+                        reportProgress();
+                        break;
+                    case 'resume':
+                        setPaused(false);
+                        reportProgress();
+                        break;
+                    case 'seek':
+                        if (Number.isFinite(Number(data.position))) {
+                            seekTo(Number(data.position));
+                            reportProgress();
+                        }
+                        break;
                 }
             });
+
+            restartSyncTimer();
 
             // 準備完了を Lua に知らせる
             notifyLua('duiReady', {});

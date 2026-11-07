@@ -2,9 +2,9 @@ fx_version 'cerulean'
 game 'gta5'
 
 name 'movie-player'
-description 'YouTube/Twitch video player with DUI, shareable with nearby players'
+description 'YouTube/Twitch video player with DUI: synced watching with nearby players and screens placed in the world'
 author 'Tani'
-version '3.0.0'
+version '4.0.0'
 
 shared_scripts {
     'config.lua',
