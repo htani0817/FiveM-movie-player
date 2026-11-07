@@ -183,6 +183,7 @@ local function openUrlInput()
         action = 'openInput',
         receiveEnabled = receiveEnabled,
         maxTargets = Config.MaxShareTargets,
+        nearbyDistance = Config.NearbyDistance,
     })
 end
 

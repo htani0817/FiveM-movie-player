@@ -12,6 +12,7 @@ const shareBtn = document.getElementById('share-btn');
 const playerListContainer = document.getElementById('player-list-container');
 const playerList = document.getElementById('player-list');
 const playerCount = document.getElementById('player-count');
+const playerRange = document.getElementById('player-range');
 const shareConfirmBtn = document.getElementById('share-confirm-btn');
 const selectAllBtn = document.getElementById('select-all-btn');
 const refreshBtn = document.getElementById('refresh-btn');
@@ -26,11 +27,13 @@ const volumeFill = document.getElementById('volume-fill');
 const volumeValue = document.getElementById('volume-value');
 const volumeIcon = document.getElementById('volume-icon');
 const platformBadge = document.getElementById('platform-badge');
+const platformName = document.getElementById('platform-name');
 
 // DOM要素 - 共有の承諾確認・トースト
 const shareRequest = document.getElementById('share-request');
 const shareRequestText = document.getElementById('share-request-text');
 const shareRequestHint = document.getElementById('share-request-hint');
+const shareRequestRemaining = document.getElementById('share-request-remaining');
 const shareRequestBar = document.getElementById('share-request-bar');
 const shareRequestAccept = document.getElementById('share-request-accept');
 const shareRequestDecline = document.getElementById('share-request-decline');
@@ -43,15 +46,17 @@ const POST_TIMEOUT_MS = 15000;       // 再生開始は DUI の準備待ちを�
 const PLAYER_LIST_REFRESH_MS = 2000; // 付近プレイヤー一覧の自動更新間隔
 const MAX_TOASTS = 4;
 
-const SELECT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+const SELECT_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+const ICON_ATTRS = 'width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
 
 const TOAST_ICONS = {
-    info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
-    success: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
-    error: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
+    info: `<svg ${ICON_ATTRS}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
+    success: `<svg ${ICON_ATTRS}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`,
+    error: `<svg ${ICON_ATTRS}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`
 };
 
-const CLOSE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+const CLOSE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
 
 let currentVolume = 50;
 let isMuted = false;
@@ -63,6 +68,8 @@ let nearbyRequestInFlight = false;
 let playerListTimer = null;
 let isPlayerListOpen = false;
 let maxTargets = 10;
+let nearbyDistance = 50; // 付近プレイヤーの検出距離（m）。距離バーの基準に使う
+let shareRequestTick = null;
 let screen = 'none'; // 'none' | 'input' | 'player'
 let isBusy = false;
 let volumeSendTimer = null;
@@ -171,6 +178,10 @@ function showInputScreen(options) {
     if (Number.isInteger(opts.maxTargets) && opts.maxTargets > 0) {
         maxTargets = opts.maxTargets;
     }
+    if (Number.isFinite(opts.nearbyDistance) && opts.nearbyDistance > 0) {
+        nearbyDistance = opts.nearbyDistance;
+    }
+    playerRange.textContent = `${formatMeters(nearbyDistance)} 以内`;
 
     hidePlayerList();
     urlInput.focus();
@@ -199,7 +210,12 @@ function closeAll() {
 // プラットフォームバッジを更新
 function updatePlatformBadge(platform) {
     platformBadge.className = 'platform-badge ' + platform;
-    platformBadge.textContent = platform === 'twitch' ? 'Twitch' : 'YouTube';
+    platformName.textContent = platform === 'twitch' ? 'Twitch' : 'YouTube';
+}
+
+// 50 → "50m"、12.5 → "12.5m"（整数なら小数を付けない）
+function formatMeters(value) {
+    return (Number.isInteger(value) ? String(value) : value.toFixed(1)) + 'm';
 }
 
 // ================== エラー・処理中の表示 ==================
@@ -352,7 +368,7 @@ function renderPlayerList() {
     if (nearbyPlayers.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'no-players';
-        empty.textContent = '付近にプレイヤーがいません';
+        empty.textContent = `${formatMeters(nearbyDistance)} 以内にプレイヤーがいません`;
         playerList.appendChild(empty);
         return;
     }
@@ -377,13 +393,24 @@ function renderPlayerList() {
         name.className = 'player-name';
         name.textContent = player.name;
         const id = document.createElement('div');
-        id.className = 'player-id';
-        id.textContent = 'ID: ' + player.id;
+        id.className = 'player-id num';
+        id.textContent = 'ID ' + player.id;
         info.append(name, id);
 
+        // 距離の数字と、検出範囲の中でどれだけ近いかのバー（近いほど長い）
         const distance = document.createElement('div');
         distance.className = 'player-distance';
-        distance.textContent = player.distance.toFixed(1) + 'm';
+        const distanceValue = document.createElement('div');
+        distanceValue.className = 'player-distance-value num';
+        distanceValue.textContent = player.distance.toFixed(1) + 'm';
+        const track = document.createElement('div');
+        track.className = 'player-distance-track';
+        const fill = document.createElement('div');
+        fill.className = 'player-distance-fill';
+        const closeness = Math.max(0.04, Math.min(1, 1 - player.distance / nearbyDistance));
+        fill.style.transform = `scaleX(${closeness.toFixed(3)})`;
+        track.appendChild(fill);
+        distance.append(distanceValue, track);
 
         item.append(checkbox, info, distance);
 
@@ -440,7 +467,7 @@ function updateShareButton() {
     const count = selectedPlayers.size;
     shareConfirmBtn.disabled = count === 0 || isBusy;
     shareConfirmBtn.querySelector('span').textContent = count === 0
-        ? '選択したプレイヤーに共有'
+        ? '共有する相手を選択'
         : `${count}人に共有`;
     selectAllBtn.disabled = nearbyPlayers.length === 0;
 }
@@ -489,18 +516,42 @@ function showShareRequest(data) {
     const timeoutMs = Number.isFinite(data.timeoutMs) && data.timeoutMs > 0 ? data.timeoutMs : 15000;
 
     shareRequestText.textContent = `${from} さんが ${platform} の動画を共有しました`;
-    shareRequestHint.textContent = `キー操作: ${data.acceptKey || 'Y'} で視聴 / ${data.declineKey || 'N'} で辞退（初期設定）`;
+
+    // キーの案内はキーキャップで出す（キー名は textContent で入れる）
+    const keyHint = (key, label) => {
+        const kbd = document.createElement('kbd');
+        kbd.textContent = typeof key === 'string' && key !== '' ? key : '?';
+        const text = document.createElement('span');
+        text.textContent = label;
+        return [kbd, text];
+    };
+    shareRequestHint.replaceChildren(
+        ...keyHint(data.acceptKey || 'Y', 'で視聴'),
+        ...keyHint(data.declineKey || 'N', 'で辞退（初期設定のキー）')
+    );
 
     // 残り時間のバーを最初から動かし直す
     shareRequestBar.style.animation = 'none';
     void shareRequestBar.offsetWidth;
     shareRequestBar.style.animation = `shareRequestTimer ${timeoutMs}ms linear forwards`;
 
+    // 残り秒数（バーと同じ時間で数える）
+    const deadline = Date.now() + timeoutMs;
+    const updateRemaining = () => {
+        const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+        shareRequestRemaining.textContent = String(seconds);
+    };
+    clearInterval(shareRequestTick);
+    updateRemaining();
+    shareRequestTick = setInterval(updateRemaining, 250);
+
     shareRequest.classList.remove('hidden');
 }
 
 function hideShareRequest() {
     shareRequest.classList.add('hidden');
+    clearInterval(shareRequestTick);
+    shareRequestTick = null;
 }
 
 shareRequestAccept.addEventListener('click', function() {
@@ -623,7 +674,7 @@ volumeBtn.addEventListener('click', function() {
 });
 
 function updateVolumeUI() {
-    volumeFill.style.width = currentVolume + '%';
+    volumeFill.style.transform = `scaleX(${currentVolume / 100})`;
     volumeValue.textContent = currentVolume + '%';
 
     if (currentVolume === 0) {
