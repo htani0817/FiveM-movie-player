@@ -105,6 +105,11 @@ Config.Screens = {
     -- 配置中にマウスホイール 1 回で変わる幅（メートル）
     WidthStep = 0.25,
 
+    -- 空中に置くとき（配置中に G で切り替え）の、カメラからスクリーンまでの距離（メートル）。← / → で変えられる
+    AirDistance = 4.0,
+    AirMinDistance = 1.5,
+    AirMaxDistance = 12.0,
+
     -- スクリーンを描く距離（メートル）
     RenderDistance = 60.0,
 

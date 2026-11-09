@@ -1327,9 +1327,13 @@ function updatePlaceHint(data) {
         ...keyHint('ホイール', '大きさ'),
         ...keyHint('↑ ↓', '高さ')
     ];
-    if (data.surface === 'floor' || data.surface === 'ceiling') {
+    if (data.surface === 'air') {
+        keys.push(...keyHint('← →', '距離'));
+    }
+    if (data.surface === 'floor' || data.surface === 'ceiling' || data.surface === 'air') {
         keys.push(...keyHint('Q E', '向き'));
     }
+    keys.push(...keyHint('G', data.surface === 'air' ? '壁・床に置く' : '空中に置く'));
     keys.push(...keyHint('左クリック', data.mode === 'move' ? '動かす' : '置く'));
     keys.push(...keyHint('右クリック', 'やめる'));
     placeKeys.replaceChildren(...keys);
