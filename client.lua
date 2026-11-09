@@ -1526,11 +1526,14 @@ end, false)
 
 -- ================== 空間スクリーン: 配置 ==================
 
--- 配置中に止めるコントロール（攻撃・武器の切り替え・カバー・拾う・メニュー・矢印キー・決定・戻る）
+-- 配置中に止めるコントロール（攻撃・武器の切り替え・カバー・拾う・メニュー・矢印キー・決定・戻る・G）
 local PLACEMENT_BLOCKED = {
-    14, 15, 16, 17, 24, 25, 37, 38, 44, 45, 140, 141, 142, 172, 173, 174, 175,
+    14, 15, 16, 17, 24, 25, 37, 38, 44, 45, 47, 58, 140, 141, 142, 172, 173, 174, 175,
     177, 191, 194, 199, 200, 201, 202, 241, 242, 257, 261, 262,
 }
+
+-- 空中モードの切り替えキー（47 = INPUT_DETONATE、キーボードの G）
+local PLACEMENT_AIR_TOGGLE = 47
 
 local function placementHint(state)
     SendNUIMessage({
@@ -1561,7 +1564,24 @@ local function previewPlacement(state)
     local halfH = screenHeight(state.width) / 2
 
     local center, forward, surface
-    if hitCoords and normal then
+    if state.air then
+        -- 空中: カメラの視線の先、state.airDistance の位置に、自分の方を向けて浮かべる。Q / E で回せる
+        -- 手前に壁などがあるときは、その手前で止める（壁の向こうに埋もれないように）
+        surface = 'air'
+        local distance = state.airDistance
+        if hitCoords then
+            distance = math.min(distance, math.max(0.5, #(hitCoords - camCoords) - 0.15))
+        end
+        local toCamera = normalize(vector3(-direction.x, -direction.y, 0.0)) or vector3(0.0, 1.0, 0.0)
+        forward = headingToForward(forwardToHeading(toCamera) + state.rotation)
+        center = camCoords + direction * distance + UP * state.lift
+
+        -- 下の端が床にめり込むときは、床の上まで持ち上げる
+        local groundCoords = raycast(center, center - UP * (halfH + 0.05))
+        if groundCoords then
+            center = vector3(center.x, center.y, groundCoords.z + halfH + 0.05)
+        end
+    elseif hitCoords and normal then
         if math.abs(normal.z) < 0.6 then
             -- 壁: 壁に沿って、壁から少し浮かせて貼る
             surface = 'wall'
@@ -1592,7 +1612,7 @@ local function previewPlacement(state)
     local valid, reason = true, nil
     local pedCoords = GetEntityCoords(PlayerPedId())
     if surface == 'none' then
-        valid, reason = false, '壁か床を狙ってください'
+        valid, reason = false, '壁か床を狙ってください（G で空中に置けます）'
     elseif #(pedCoords - center) > Config.Screens.PlaceDistance then
         valid, reason = false, ('遠すぎます（%dm 以内に置けます）'):format(math.floor(Config.Screens.PlaceDistance))
     else
@@ -1626,6 +1646,9 @@ startPlacement = function(options)
         width = math.max(Config.Screens.MinWidth, math.min(Config.Screens.MaxWidth, options.width or Config.Screens.DefaultWidth)),
         rotation = 0.0,
         lift = 0.0,
+        -- 空中モード（G で切り替え）。壁・床・天井に合わせず、視線の先に浮かべる
+        air = false,
+        airDistance = Config.Screens.AirDistance,
     }
 
     CreateThread(function()
@@ -1658,6 +1681,23 @@ startPlacement = function(options)
                 state.lift = math.min(4.0, state.lift + 1.0 * dt)
             elseif IsDisabledControlPressed(0, 173) then
                 state.lift = math.max(-2.0, state.lift - 1.0 * dt)
+            end
+
+            -- G で空中モードの切り替え。高さと向きは、切り替えるたびに戻す（前のモードの調整を持ち越さない）
+            if IsDisabledControlJustPressed(0, PLACEMENT_AIR_TOGGLE) then
+                state.air = not state.air
+                state.lift = 0.0
+                state.rotation = 0.0
+                PlaySoundFrontend(-1, 'NAV_UP_DOWN', 'HUD_FRONTEND_DEFAULT_SOUNDSET', true)
+            end
+
+            -- 空中モードでは ← / → で距離（→ で遠く、← で近く）
+            if state.air then
+                if IsDisabledControlPressed(0, 175) then
+                    state.airDistance = math.min(Config.Screens.AirMaxDistance, state.airDistance + 2.0 * dt)
+                elseif IsDisabledControlPressed(0, 174) then
+                    state.airDistance = math.max(Config.Screens.AirMinDistance, state.airDistance - 2.0 * dt)
+                end
             end
 
             local geo, heading, valid, reason, surface = previewPlacement(state)
