@@ -4,7 +4,7 @@ game 'gta5'
 name 'movie-player'
 description 'YouTube/Twitch video player with DUI: synced watching with nearby players and screens placed in the world'
 author 'Tani'
-version '4.1.0'
+version '4.1.1'
 
 shared_scripts {
     'config.lua',

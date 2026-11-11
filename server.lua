@@ -542,8 +542,11 @@ local function licenseOf(src)
     return license or ('src:' .. tostring(src))
 end
 
+-- IsPlayerAceAllowed は許可のとき true ではなく 1 を返す（2026-11-11 に実機で確認）。どちらでも通す
+-- Lua では 0 も真になるので、真偽をそのまま使わずに true か 1 かで見る
 local function isAdmin(src)
-    return IsPlayerAceAllowed(tostring(src), Config.Screens.AdminAce) == true
+    local allowed = IsPlayerAceAllowed(tostring(src), Config.Screens.AdminAce)
+    return allowed == true or allowed == 1
 end
 
 local function canManageScreen(src, screen)
