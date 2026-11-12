@@ -1779,6 +1779,10 @@ local function registerTargetOptions()
         return
     end
 
+    -- 参加時は自分と ox_target の両方の起動イベントから呼ばれることがあるので、
+    -- 先に同じ名前のオプションを外してから足す（二重登録の警告を出さない）
+    exports.ox_target:removeGlobalOption({ 'movie-player:screen-panel', 'movie-player:screen-move' })
+
     local lastAimed = nil
     exports.ox_target:addGlobalOption({
         {
