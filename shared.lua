@@ -1,4 +1,4 @@
--- movie-player 共通処理（client / server の両方から読み込まれる）
+-- ta-movie-player 共通処理（client / server の両方から読み込まれる）
 -- URLの検証は必ずここを通す。受け取った文字列をそのまま信用せず、
 -- 許可したホストと形式に一致したものだけを「正規化したURL」に作り直して使う。
 MoviePlayer = {}
@@ -30,7 +30,7 @@ local MSG_BAD_FORMAT = 'URLの形式が正しくありません（動画・配�
 -- デバッグ時だけログを出す
 function MoviePlayer.Log(...)
     if Config.Debug then
-        print('[movie-player]', ...)
+        print('[ta-movie-player]', ...)
     end
 end
 

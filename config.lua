@@ -1,4 +1,4 @@
--- movie-player 設定ファイル（client / server の両方から読み込まれる）
+-- ta-movie-player 設定ファイル（client / server の両方から読み込まれる）
 Config = {}
 
 -- デバッグログ（true にすると client / server で詳細ログを出す）
@@ -91,8 +91,8 @@ Config.Screens = {
     MaxPerPlayer = 2,
 
     -- 管理者として扱う ACE 権限（どのスクリーンでも変更・撤去できる、数の上限なし）
-    -- 例: server.cfg か permissions.cfg に  add_ace group.admin movieplayer.admin allow
-    AdminAce = 'movieplayer.admin',
+    -- 例: server.cfg か permissions.cfg に  add_ace group.admin taMoviePlayer.admin allow
+    AdminAce = 'taMoviePlayer.admin',
 
     -- 置ける距離（自分からスクリーンの中心まで、メートル）
     PlaceDistance = 10.0,

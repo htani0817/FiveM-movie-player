@@ -18,14 +18,16 @@ FiveM用のビデオ視聴スクリプトです。ゲーム内でYouTubeとTwitc
 
 ## インストール方法
 
-1. このリポジトリの中身を `movie-player` という名前のフォルダにして、`resources` ディレクトリにコピー
+1. このリポジトリの中身を `ta-movie-player` という名前のフォルダにして、`resources` ディレクトリにコピー
 2. `server.cfg` に以下を追加:
    ```
-   ensure movie-player
+   ensure ta-movie-player
    ```
 3. サーバーを再起動
 
-旧名の `tani-watch` から乗り換えるときは、古い `tani-watch` フォルダを消して（または `server.cfg` の `ensure tani-watch` を外して）から入れてください。両方を同時に動かすと、`/watch` などのコマンドが重なります。キー設定（承諾・辞退のキー）と「共有を受け取る」の設定は、リソース名が変わるため初期値に戻ります。
+旧名の `movie-player`（4.x 以前）や `tani-watch` から乗り換えるときは、古いフォルダを消して（または `server.cfg` の `ensure movie-player` / `ensure tani-watch` を外して）から入れてください。両方を同時に動かすと、`/watch` などのコマンドが重なります。キー設定（承諾・辞退のキー）と「共有を受け取る」の設定は、リソース名が変わるため初期値に戻ります。
+
+管理者の ACE 権限の名前も `movieplayer.admin` から `taMoviePlayer.admin` に変わりました。`permissions.cfg` の `add_ace` も書き換えてください。
 
 ## 使用方法
 
@@ -83,7 +85,7 @@ FiveM用のビデオ視聴スクリプトです。ゲーム内でYouTubeとTwitc
 4. スクリーンを狙って心の目（ALT、ox_target）を使うと、次の操作ができます
    - **スクリーンを操作する**（全員）: 自分だけの音量。置いた人と管理者は、一時停止・シーク・動画の変更・動画を外す・撤去もできます
    - **スクリーンの位置・大きさを変える**（置いた人と管理者）: 配置と同じ操作で動かします
-- 置けるのは 1 人 2 枚まで（`Config.Screens.MaxPerPlayer`）。管理者（ACE 権限 `movieplayer.admin`）は上限なしで、どのスクリーンでも変更・撤去できます
+- 置けるのは 1 人 2 枚まで（`Config.Screens.MaxPerPlayer`）。管理者（ACE 権限 `taMoviePlayer.admin`）は上限なしで、どのスクリーンでも変更・撤去できます
 - スクリーンはサーバーを再起動すると消えます（保存しません）
 - ox_target が無いサーバーでは、`/watchscreenmenu` で近くのスクリーンの操作パネルを開けます
 
@@ -137,7 +139,7 @@ URLは「許可したホストと形式に完全一致するもの」だけ受�
 
 ## 設定
 
-`config.lua` の値を変更することでカスタマイズできます（変更後は `restart movie-player`）。
+`config.lua` の値を変更することでカスタマイズできます（変更後は `restart ta-movie-player`）。
 
 | 設定 | 初期値 | 内容 |
 | --- | --- | --- |
@@ -173,7 +175,7 @@ URLは「許可したホストと形式に完全一致するもの」だけ受�
 | --- | --- | --- |
 | `Enabled` | `true` | 空間スクリーンを使う |
 | `MaxPerPlayer` | `2` | 1人が置けるスクリーンの数（管理者は無制限） |
-| `AdminAce` | `movieplayer.admin` | 管理者として扱う ACE 権限。例: `add_ace group.admin movieplayer.admin allow` |
+| `AdminAce` | `taMoviePlayer.admin` | 管理者として扱う ACE 権限。例: `add_ace group.admin taMoviePlayer.admin allow` |
 | `PlaceDistance` | `10.0` | 置ける距離（自分からスクリーンの中心まで、メートル） |
 | `MinWidth` / `MaxWidth` / `DefaultWidth` | `1.0` / `12.0` / `3.0` | スクリーンの幅（メートル）。高さは 16:9 |
 | `WidthStep` | `0.25` | マウスホイール 1 回で変わる幅（メートル） |
@@ -220,7 +222,7 @@ URLは「許可したホストと形式に完全一致するもの」だけ受�
 ## ファイル構成
 
 ```
-movie-player/
+ta-movie-player/
 ├── fxmanifest.lua    # リソース定義
 ├── config.lua        # 設定（client / server 共通）
 ├── shared.lua        # URL検証などの共通処理（client / server 共通）
@@ -251,6 +253,10 @@ movie-player/
 - YouTube と Twitch の埋め込みプレイヤーは、再生中に広告が表示されることがあります。Cfx.re の Creator Platform License Agreement（3.1 項 (7) が、ゲーム内への第三者の広告の組み込みを禁じています）との関係は、サーバー運営者が確認してください
 
 ## 更新履歴
+
+### 5.0.0
+- 【名前の変更】リソース名を `movie-player` から `ta-movie-player`（`ensure ta-movie-player`）に、GitHub のリポジトリを `FiveM-movie-player` から `FiveM-ta-movie-player` に変えた。自作スクリプトの名前を `ta-〇〇` に揃えるため。イベント名・キー設定のコマンド名（`ta-movie-player-accept` / `ta-movie-player-decline`）・ACE 権限（`taMoviePlayer.admin`）も新しい名前に揃えた。表示名の「Movie Player」とゲーム内のコマンド（`/watch` など）は変えていない
+- 旧名の `movie-player` と同時に動かさないでください（乗り換えの手順は「インストール方法」）
 
 ### 4.1.2
 - 【不具合の修正】サーバーに参加するたびに、心の目（ALT）のスクリーン操作メニューが二重に登録され、F8 に `Replacing existing target option 'movie-player:screen-move'` などの警告が出ていたのを直した。登録の前に同じ名前のオプションを外すようにした

@@ -1,4 +1,4 @@
--- movie-player サーバースクリプト
+-- ta-movie-player サーバースクリプト
 -- 共有・上映（同期再生）・参加の申請・空間スクリーンの検証と中継
 -- クライアントから届く値は全て信用せず、送信者・URL・相手・数値・頻度をサーバ側で検証する
 
@@ -39,7 +39,7 @@ end
 
 -- 通知を送る（kind: 'error' | 'info' | 'success'）
 local function notify(target, kind, message)
-    TriggerClientEvent('movie-player:notify', target, kind, message)
+    TriggerClientEvent('ta-movie-player:notify', target, kind, message)
 end
 
 local function playerName(src)
@@ -134,7 +134,7 @@ end
 -- 参加者全員に、人数などの情報を送り直す
 local function broadcastSessionInfo(session)
     for member in pairs(session.members) do
-        TriggerClientEvent('movie-player:sessionInfo', member, sessionInfo(session, member))
+        TriggerClientEvent('ta-movie-player:sessionInfo', member, sessionInfo(session, member))
     end
 end
 
@@ -144,7 +144,7 @@ local function broadcastSessionSync(session)
     payload.sessionId = session.id
     for member in pairs(session.members) do
         if member ~= session.host then
-            TriggerClientEvent('movie-player:sessionSync', member, payload)
+            TriggerClientEvent('ta-movie-player:sessionSync', member, payload)
         end
     end
 end
@@ -158,7 +158,7 @@ local function cancelJoinRequest(requester, reason)
     joinRequests[requester] = nil
 
     if isOnline(request.host) then
-        TriggerClientEvent('movie-player:joinRequestEnd', request.host, requester)
+        TriggerClientEvent('ta-movie-player:joinRequestEnd', request.host, requester)
     end
     if reason and isOnline(requester) then
         notify(requester, 'info', reason)
@@ -172,7 +172,7 @@ local function endSession(session, reason)
             playerSession[member] = nil
         end
         if member ~= session.host and isOnline(member) then
-            TriggerClientEvent('movie-player:sessionEnded', member, session.id, reason)
+            TriggerClientEvent('ta-movie-player:sessionEnded', member, session.id, reason)
         end
     end
     for requester, request in pairs(joinRequests) do
@@ -224,7 +224,7 @@ local function addMember(session, src)
 
     local payload = syncPayload(session.state)
     payload.sessionId = session.id
-    TriggerClientEvent('movie-player:sessionSync', src, payload)
+    TriggerClientEvent('ta-movie-player:sessionSync', src, payload)
     return true
 end
 
@@ -244,13 +244,13 @@ local function startSession(src, media)
     }
     sessions[session.id] = session
     playerSession[src] = session.id
-    TriggerClientEvent('movie-player:sessionInfo', src, sessionInfo(session, src))
+    TriggerClientEvent('ta-movie-player:sessionInfo', src, sessionInfo(session, src))
     MoviePlayer.Log(('session %d started by %d (%s)'):format(session.id, src, media.platform))
     return session
 end
 
 -- ひとりで再生を始めたとき（共有なし）も上映として扱い、近くの人が参加を申請できるようにする
-RegisterNetEvent('movie-player:startSession', function(url)
+RegisterNetEvent('ta-movie-player:startSession', function(url)
     local src = tonumber(source)
     if not src then
         return
@@ -263,7 +263,7 @@ RegisterNetEvent('movie-player:startSession', function(url)
     startSession(src, media)
 end)
 
-RegisterNetEvent('movie-player:leaveSession', function()
+RegisterNetEvent('ta-movie-player:leaveSession', function()
     local src = tonumber(source)
     if src then
         leaveSession(src)
@@ -271,7 +271,7 @@ RegisterNetEvent('movie-player:leaveSession', function()
 end)
 
 -- ホストの再生位置の報告（定期と、一時停止・シークしたとき）
-RegisterNetEvent('movie-player:hostState', function(playing, position)
+RegisterNetEvent('ta-movie-player:hostState', function(playing, position)
     local src = tonumber(source)
     if not src then
         return
@@ -299,7 +299,7 @@ RegisterNetEvent('movie-player:hostState', function(playing, position)
 end)
 
 -- 参加者が再生を始めたときに、今の再生状態を問い合わせる
-RegisterNetEvent('movie-player:requestSync', function()
+RegisterNetEvent('ta-movie-player:requestSync', function()
     local src = tonumber(source)
     if not src then
         return
@@ -312,13 +312,13 @@ RegisterNetEvent('movie-player:requestSync', function()
 
     local payload = syncPayload(session.state)
     payload.sessionId = session.id
-    TriggerClientEvent('movie-player:sessionSync', src, payload)
+    TriggerClientEvent('ta-movie-player:sessionSync', src, payload)
 end)
 
 -- ================== 共有（ホストから近くの人へ） ==================
 
 -- 引数は url と targetPlayers のみ。送信者の名前と ID は source から取得する
-RegisterNetEvent('movie-player:shareVideo', function(url, targetPlayers)
+RegisterNetEvent('ta-movie-player:shareVideo', function(url, targetPlayers)
     local src = tonumber(source)
     if not src then
         return
@@ -383,15 +383,15 @@ RegisterNetEvent('movie-player:shareVideo', function(url, targetPlayers)
             sessionId = session.id,
             expires = t + Config.ShareRequestTimeoutMs + 5000,
         }
-        TriggerClientEvent('movie-player:receiveShare', targetId, media.url, session.hostName, src)
+        TriggerClientEvent('ta-movie-player:receiveShare', targetId, media.url, session.hostName, src)
     end
 
-    TriggerClientEvent('movie-player:shareResult', src, #targets, skipped)
+    TriggerClientEvent('ta-movie-player:shareResult', src, #targets, skipped)
 end)
 
 -- 受信者の応答（視聴する / 辞退 / 時間切れ）を送信者へ伝える
 -- 直前にこの受信者へ共有した送信者がいる場合だけ有効。視聴するなら上映に加える
-RegisterNetEvent('movie-player:shareResponse', function(status)
+RegisterNetEvent('ta-movie-player:shareResponse', function(status)
     local src = tonumber(source)
     if not src then
         return
@@ -417,13 +417,13 @@ RegisterNetEvent('movie-player:shareResponse', function(status)
         end
     end
 
-    TriggerClientEvent('movie-player:shareReply', offer.from, playerName(src), status)
+    TriggerClientEvent('ta-movie-player:shareReply', offer.from, playerName(src), status)
 end)
 
 -- ================== 参加の申請（近くの人からホストへ） ==================
 
 -- 近くで上映している上映の一覧（自分が参加していないもの）
-RegisterNetEvent('movie-player:listSessions', function()
+RegisterNetEvent('ta-movie-player:listSessions', function()
     local src = tonumber(source)
     if not src or not Config.JoinRequestEnabled then
         return
@@ -450,10 +450,10 @@ RegisterNetEvent('movie-player:listSessions', function()
             }
         end
     end
-    TriggerClientEvent('movie-player:sessionList', src, list)
+    TriggerClientEvent('ta-movie-player:sessionList', src, list)
 end)
 
-RegisterNetEvent('movie-player:requestJoin', function(sessionId)
+RegisterNetEvent('ta-movie-player:requestJoin', function(sessionId)
     local src = tonumber(source)
     if not src or not Config.JoinRequestEnabled then
         return
@@ -489,7 +489,7 @@ RegisterNetEvent('movie-player:requestJoin', function(sessionId)
 
     local expires = t + Config.JoinRequestTimeoutMs
     joinRequests[src] = { sessionId = session.id, host = session.host, expires = expires }
-    TriggerClientEvent('movie-player:joinRequest', session.host, src, playerName(src), Config.JoinRequestTimeoutMs)
+    TriggerClientEvent('ta-movie-player:joinRequest', session.host, src, playerName(src), Config.JoinRequestTimeoutMs)
     notify(src, 'info', ('%sさんに参加を申請しました'):format(session.hostName))
 
     SetTimeout(Config.JoinRequestTimeoutMs + 1000, function()
@@ -501,7 +501,7 @@ RegisterNetEvent('movie-player:requestJoin', function(sessionId)
 end)
 
 -- ホストの答え（許可 / 拒否）
-RegisterNetEvent('movie-player:joinResponse', function(requester, approved)
+RegisterNetEvent('ta-movie-player:joinResponse', function(requester, approved)
     local src = tonumber(source)
     requester = tonumber(requester)
     if not src or not requester or type(approved) ~= 'boolean' then
@@ -531,7 +531,7 @@ RegisterNetEvent('movie-player:joinResponse', function(requester, approved)
         return
     end
 
-    TriggerClientEvent('movie-player:joinApproved', requester, session.media.url, hostName)
+    TriggerClientEvent('ta-movie-player:joinApproved', requester, session.media.url, hostName)
     notify(src, 'success', ('%sさんが参加しました'):format(playerName(requester)))
 end)
 
@@ -570,7 +570,7 @@ local function publicScreen(screen)
 end
 
 local function broadcastScreen(screen)
-    TriggerClientEvent('movie-player:screenUpsert', -1, publicScreen(screen))
+    TriggerClientEvent('ta-movie-player:screenUpsert', -1, publicScreen(screen))
 end
 
 -- 置く・動かす・動画の変更の頻度を抑える
@@ -629,7 +629,7 @@ local function setScreenMedia(screen, media)
 end
 
 -- 置く（url を付けると、置いたスクリーンでそのまま再生する）
-RegisterNetEvent('movie-player:placeScreen', function(data, url)
+RegisterNetEvent('ta-movie-player:placeScreen', function(data, url)
     local src = tonumber(source)
     if not src or not Config.Screens.Enabled then
         return
@@ -681,7 +681,7 @@ RegisterNetEvent('movie-player:placeScreen', function(data, url)
 end)
 
 -- 位置・大きさを変える
-RegisterNetEvent('movie-player:moveScreen', function(id, data)
+RegisterNetEvent('ta-movie-player:moveScreen', function(id, data)
     local src = tonumber(source)
     local screen = screens[tonumber(id) or -1]
     if not src or not screen then
@@ -708,7 +708,7 @@ RegisterNetEvent('movie-player:moveScreen', function(id, data)
     notify(src, 'success', 'スクリーンを動かしました')
 end)
 
-RegisterNetEvent('movie-player:removeScreen', function(id)
+RegisterNetEvent('ta-movie-player:removeScreen', function(id)
     local src = tonumber(source)
     local screen = screens[tonumber(id) or -1]
     if not src or not screen then
@@ -720,12 +720,12 @@ RegisterNetEvent('movie-player:removeScreen', function(id)
     end
 
     screens[screen.id] = nil
-    TriggerClientEvent('movie-player:screenRemove', -1, screen.id)
+    TriggerClientEvent('ta-movie-player:screenRemove', -1, screen.id)
     notify(src, 'success', 'スクリーンを撤去しました')
 end)
 
 -- 動画を変える（空の URL なら止める）
-RegisterNetEvent('movie-player:setScreenMedia', function(id, url)
+RegisterNetEvent('ta-movie-player:setScreenMedia', function(id, url)
     local src = tonumber(source)
     local screen = screens[tonumber(id) or -1]
     if not src or not screen then
@@ -759,7 +759,7 @@ RegisterNetEvent('movie-player:setScreenMedia', function(id, url)
 end)
 
 -- 再生・一時停止・シーク（置いた人と管理者だけ。音量は各自がクライアントで変える）
-RegisterNetEvent('movie-player:screenControl', function(id, action, position)
+RegisterNetEvent('ta-movie-player:screenControl', function(id, action, position)
     local src = tonumber(source)
     local screen = screens[tonumber(id) or -1]
     if not src or not screen or not screen.media then
@@ -785,11 +785,11 @@ RegisterNetEvent('movie-player:screenControl', function(id, action, position)
 
     local payload = syncPayload(screen.state)
     payload.screenId = screen.id
-    TriggerClientEvent('movie-player:screenSync', -1, payload)
+    TriggerClientEvent('ta-movie-player:screenSync', -1, payload)
 end)
 
 -- 参加したときに、置かれているスクリーンを全部送る
-RegisterNetEvent('movie-player:requestScreens', function()
+RegisterNetEvent('ta-movie-player:requestScreens', function()
     local src = tonumber(source)
     if not src then
         return
@@ -799,7 +799,7 @@ RegisterNetEvent('movie-player:requestScreens', function()
     for _, screen in pairs(screens) do
         list[#list + 1] = publicScreen(screen)
     end
-    TriggerClientEvent('movie-player:screensInit', src, list, isAdmin(src))
+    TriggerClientEvent('ta-movie-player:screensInit', src, list, isAdmin(src))
 end)
 
 -- 再接続した持ち主を、スクリーンの持ち主として表示し直す
@@ -854,7 +854,7 @@ AddEventHandler('playerDropped', function()
             screen.ownerSrc = nil
             if Config.Screens.RemoveOnOwnerDrop then
                 screens[id] = nil
-                TriggerClientEvent('movie-player:screenRemove', -1, id)
+                TriggerClientEvent('ta-movie-player:screenRemove', -1, id)
             else
                 broadcastScreen(screen)
             end
@@ -865,6 +865,6 @@ end)
 -- リソース開始時のログ
 AddEventHandler('onResourceStart', function(resourceName)
     if GetCurrentResourceName() == resourceName then
-        print('[movie-player] Resource started')
+        print('[ta-movie-player] Resource started')
     end
 end)
