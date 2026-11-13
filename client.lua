@@ -1,4 +1,4 @@
--- movie-player クライアントスクリプト
+-- ta-movie-player クライアントスクリプト
 -- DUI で動画を描画し、NUI（html/index.html）で操作画面を出す
 -- 視聴画面（画面の上に枠を出して観る）と、空間スクリーン（街の中に置いたスクリーンで観る）の2通り
 
@@ -12,7 +12,7 @@ local currentVolume = 50
 local currentMedia = nil     -- 視聴画面で再生中のメディア
 
 -- 視聴画面の枠
-local KVP_FRAME_SCALE = 'movie-player:frameScale'
+local KVP_FRAME_SCALE = 'ta-movie-player:frameScale'
 local frameScale = tonumber(GetResourceKvpString(KVP_FRAME_SCALE)) or 1.0
 local videoRect = nil        -- 動画を描く位置（NUI が枠の大きさから計算して送ってくる。画面に対する割合）
 
@@ -33,10 +33,10 @@ local CONTROLS_BLOCKED_WHILE_KEEPING_INPUT = {
 -- DUI（main = 視聴画面、s1・s2… = 空間スクリーン）
 local duis = {}              -- [枠の名前] = { object, texture, pageReady }
 local runtimeTxd = nil
-local TXD_NAME = 'movie_player_dict'
+local TXD_NAME = 'ta_movie_player_dict'
 
 -- 共有の受信
-local KVP_RECEIVE = 'movie-player:receiveShare'
+local KVP_RECEIVE = 'ta-movie-player:receiveShare'
 local receiveEnabled = GetResourceKvpString(KVP_RECEIVE) ~= '0' -- 未設定なら受け取る
 local blockedSenders = {}    -- [送信者のサーバーID] = true（再接続するまで有効）
 local lastSender = nil       -- 最後に共有してきた人 { id, name }
@@ -90,7 +90,7 @@ local function registerCallback(name, handler)
     RegisterNUICallback(name, function(data, cb)
         local ok, result = pcall(handler, type(data) == 'table' and data or {})
         if not ok then
-            print(('[movie-player] callback %s error: %s'):format(name, tostring(result)))
+            print(('[ta-movie-player] callback %s error: %s'):format(name, tostring(result)))
             cb({ success = false, message = '内部エラーが発生しました' })
             return
         end
@@ -104,7 +104,7 @@ end
 -- ================== DUI ==================
 
 local function textureName(slot)
-    return 'movie_player_' .. slot
+    return 'ta_movie_player_' .. slot
 end
 
 local function createDui(slot)
@@ -203,7 +203,7 @@ end
 -- 今の上映から抜ける（サーバーに伝え、同期をやめる）
 local function leaveCurrentSession()
     if session then
-        TriggerServerEvent('movie-player:leaveSession')
+        TriggerServerEvent('ta-movie-player:leaveSession')
     end
     session = nil
     pendingSessionSync = nil
@@ -331,7 +331,7 @@ registerCallback('playVideo', function(data)
     end
 
     -- ひとりで観るときも上映として登録し、近くの人が参加を申請できるようにする
-    TriggerServerEvent('movie-player:startSession', media.url)
+    TriggerServerEvent('ta-movie-player:startSession', media.url)
     return { success = true, platform = media.platform }
 end)
 
@@ -453,7 +453,7 @@ local function reportHostState(progress)
     end
 
     lastHostReport = { time = progress.time, paused = progress.paused, at = t }
-    TriggerServerEvent('movie-player:hostState', not progress.paused, progress.time)
+    TriggerServerEvent('ta-movie-player:hostState', not progress.paused, progress.time)
 end
 
 -- 再生位置の通知（DUI → Lua、1秒ごと）
@@ -476,7 +476,7 @@ end)
 
 -- ================== 上映（同期再生） ==================
 
-RegisterNetEvent('movie-player:sessionInfo', function(info)
+RegisterNetEvent('ta-movie-player:sessionInfo', function(info)
     if type(info) ~= 'table' or not tonumber(info.sessionId) then
         return
     end
@@ -495,7 +495,7 @@ RegisterNetEvent('movie-player:sessionInfo', function(info)
 end)
 
 -- ホストの再生状態（参加者だけに届く）
-RegisterNetEvent('movie-player:sessionSync', function(payload)
+RegisterNetEvent('ta-movie-player:sessionSync', function(payload)
     if type(payload) ~= 'table' or type(payload.playing) ~= 'boolean' then
         return
     end
@@ -515,7 +515,7 @@ RegisterNetEvent('movie-player:sessionSync', function(payload)
     end
 end)
 
-RegisterNetEvent('movie-player:sessionEnded', function(sessionId)
+RegisterNetEvent('ta-movie-player:sessionEnded', function(sessionId)
     if not session or tonumber(sessionId) ~= session.sessionId then
         return
     end
@@ -531,7 +531,7 @@ end)
 -- ================== 承諾確認（共有・参加の申請） ==================
 
 local function respondShare(status)
-    TriggerServerEvent('movie-player:shareResponse', status)
+    TriggerServerEvent('ta-movie-player:shareResponse', status)
 end
 
 local showNextPrompt -- 下で定義
@@ -579,7 +579,7 @@ local function resolvePrompt(accepted, status)
             respondShare(status or 'declined')
         end
     elseif prompt.kind == 'join' then
-        TriggerServerEvent('movie-player:joinResponse', prompt.requesterId, accepted == true)
+        TriggerServerEvent('ta-movie-player:joinResponse', prompt.requesterId, accepted == true)
     end
 
     showNextPrompt()
@@ -650,7 +650,7 @@ local function setReceiveEnabled(enabled)
 end
 
 -- サーバー経由で届いた共有。承諾確認なしに再生や画面の奪取はしない
-RegisterNetEvent('movie-player:receiveShare', function(url, fromName, fromId)
+RegisterNetEvent('ta-movie-player:receiveShare', function(url, fromName, fromId)
     fromName = type(fromName) == 'string' and MoviePlayer.SanitizeName(fromName) or '不明'
     fromId = tonumber(fromId)
 
@@ -686,11 +686,11 @@ RegisterNetEvent('movie-player:receiveShare', function(url, fromName, fromId)
 end)
 
 -- 参加の申請が届いた（ホストだけ）
-RegisterNetEvent('movie-player:joinRequest', function(requesterId, name, timeoutMs)
+RegisterNetEvent('ta-movie-player:joinRequest', function(requesterId, name, timeoutMs)
     requesterId = tonumber(requesterId)
     if not requesterId or not session or not session.isHost then
         if requesterId then
-            TriggerServerEvent('movie-player:joinResponse', requesterId, false)
+            TriggerServerEvent('ta-movie-player:joinResponse', requesterId, false)
         end
         return
     end
@@ -706,13 +706,13 @@ RegisterNetEvent('movie-player:joinRequest', function(requesterId, name, timeout
 end)
 
 -- 申請が取り消された（時間切れ・申請者の退出など）
-RegisterNetEvent('movie-player:joinRequestEnd', function(requesterId)
+RegisterNetEvent('ta-movie-player:joinRequestEnd', function(requesterId)
     requesterId = tonumber(requesterId)
     removePrompts(function(prompt) return prompt.kind == 'join' and prompt.requesterId == requesterId end)
 end)
 
 -- 参加が許可された（申請した側）
-RegisterNetEvent('movie-player:joinApproved', function(url, hostName)
+RegisterNetEvent('ta-movie-player:joinApproved', function(url, hostName)
     local media = MoviePlayer.ParseMedia(url)
     if not media then
         return
@@ -723,7 +723,7 @@ RegisterNetEvent('movie-player:joinApproved', function(url, hostName)
         local ok, err = startPlayback(media)
         if ok then
             toast('success', ('%sさんの上映に参加しました'):format(hostName))
-            TriggerServerEvent('movie-player:requestSync')
+            TriggerServerEvent('ta-movie-player:requestSync')
         else
             toast('error', err or '動画を再生できませんでした')
             leaveCurrentSession()
@@ -744,16 +744,16 @@ registerCallback('setReceiveShare', function(data)
 end)
 
 -- キー操作（NUI にフォーカスが無いとき用。変更は FiveM のキー設定から）
-RegisterCommand('movie-player-accept', function()
+RegisterCommand('ta-movie-player-accept', function()
     resolvePrompt(true)
 end, false)
 
-RegisterCommand('movie-player-decline', function()
+RegisterCommand('ta-movie-player-decline', function()
     resolvePrompt(false, 'declined')
 end, false)
 
-RegisterKeyMapping('movie-player-accept', '動画の共有・参加の申請を受ける', 'keyboard', Config.AcceptKey)
-RegisterKeyMapping('movie-player-decline', '動画の共有・参加の申請を断る', 'keyboard', Config.DeclineKey)
+RegisterKeyMapping('ta-movie-player-accept', '動画の共有・参加の申請を受ける', 'keyboard', Config.AcceptKey)
+RegisterKeyMapping('ta-movie-player-decline', '動画の共有・参加の申請を断る', 'keyboard', Config.DeclineKey)
 
 -- 共有の受信を切り替える
 RegisterCommand('watchdnd', function()
@@ -847,12 +847,12 @@ registerCallback('shareVideo', function(data)
         return { success = false, message = err }
     end
 
-    TriggerServerEvent('movie-player:shareVideo', media.url, targets)
+    TriggerServerEvent('ta-movie-player:shareVideo', media.url, targets)
     return { success = true, platform = media.platform }
 end)
 
 -- サーバーからの送信結果
-RegisterNetEvent('movie-player:shareResult', function(sent, skipped)
+RegisterNetEvent('ta-movie-player:shareResult', function(sent, skipped)
     sent = tonumber(sent) or 0
     skipped = tonumber(skipped) or 0
 
@@ -864,7 +864,7 @@ RegisterNetEvent('movie-player:shareResult', function(sent, skipped)
 end)
 
 -- サーバーからの通知（検証エラーなど）
-RegisterNetEvent('movie-player:notify', function(kind, message)
+RegisterNetEvent('ta-movie-player:notify', function(kind, message)
     if type(message) ~= 'string' then
         return
     end
@@ -875,7 +875,7 @@ RegisterNetEvent('movie-player:notify', function(kind, message)
 end)
 
 -- 受信者の応答
-RegisterNetEvent('movie-player:shareReply', function(name, status)
+RegisterNetEvent('ta-movie-player:shareReply', function(name, status)
     if type(name) ~= 'string' or type(status) ~= 'string' then
         return
     end
@@ -896,11 +896,11 @@ end)
 -- 近くの上映の一覧を問い合わせる（結果は sessionList で届く）
 registerCallback('listSessions', function()
     if Config.JoinRequestEnabled then
-        TriggerServerEvent('movie-player:listSessions')
+        TriggerServerEvent('ta-movie-player:listSessions')
     end
 end)
 
-RegisterNetEvent('movie-player:sessionList', function(list)
+RegisterNetEvent('ta-movie-player:sessionList', function(list)
     if type(list) ~= 'table' then
         return
     end
@@ -936,7 +936,7 @@ registerCallback('requestJoin', function(data)
     if not sessionId or not Config.JoinRequestEnabled then
         return { success = false }
     end
-    TriggerServerEvent('movie-player:requestJoin', sessionId)
+    TriggerServerEvent('ta-movie-player:requestJoin', sessionId)
     return { success = true }
 end)
 
@@ -1290,7 +1290,7 @@ local function upsertScreen(data)
     end
 end
 
-RegisterNetEvent('movie-player:screensInit', function(list, admin)
+RegisterNetEvent('ta-movie-player:screensInit', function(list, admin)
     isAdmin = admin == true
     screens = {}
     if type(list) == 'table' then
@@ -1300,7 +1300,7 @@ RegisterNetEvent('movie-player:screensInit', function(list, admin)
     end
 end)
 
-RegisterNetEvent('movie-player:screenUpsert', function(data)
+RegisterNetEvent('ta-movie-player:screenUpsert', function(data)
     upsertScreen(data)
 end)
 
@@ -1313,7 +1313,7 @@ local function closeScreenPanel()
     SendNUIMessage({ action = 'screenPanelClose' })
 end
 
-RegisterNetEvent('movie-player:screenRemove', function(id)
+RegisterNetEvent('ta-movie-player:screenRemove', function(id)
     id = tonumber(id)
     if not id or not screens[id] then
         return
@@ -1328,7 +1328,7 @@ RegisterNetEvent('movie-player:screenRemove', function(id)
     end
 end)
 
-RegisterNetEvent('movie-player:screenSync', function(payload)
+RegisterNetEvent('ta-movie-player:screenSync', function(payload)
     if type(payload) ~= 'table' or type(payload.playing) ~= 'boolean' then
         return
     end
@@ -1447,7 +1447,7 @@ registerCallback('screenControl', function(data)
     if data.action ~= 'pause' and data.action ~= 'play' and data.action ~= 'seek' then
         return
     end
-    TriggerServerEvent('movie-player:screenControl', screen.id, data.action, finiteNumber(data.position))
+    TriggerServerEvent('ta-movie-player:screenControl', screen.id, data.action, finiteNumber(data.position))
 end)
 
 -- 自分だけの音量（ほかの人には影響しない）
@@ -1477,7 +1477,7 @@ registerCallback('screenSetMedia', function(data)
         end
         url = media.url
     end
-    TriggerServerEvent('movie-player:setScreenMedia', screen.id, url)
+    TriggerServerEvent('ta-movie-player:setScreenMedia', screen.id, url)
     return { success = true }
 end)
 
@@ -1486,7 +1486,7 @@ registerCallback('screenRemove', function(data)
     if not screen or not canManage(screen) then
         return
     end
-    TriggerServerEvent('movie-player:removeScreen', screen.id)
+    TriggerServerEvent('ta-movie-player:removeScreen', screen.id)
     closeScreenPanel()
 end)
 
@@ -1725,9 +1725,9 @@ startPlacement = function(options)
                 if valid then
                     local data = { x = geo.center.x, y = geo.center.y, z = geo.center.z, heading = heading, width = state.width }
                     if state.mode == 'move' then
-                        TriggerServerEvent('movie-player:moveScreen', state.screenId, data)
+                        TriggerServerEvent('ta-movie-player:moveScreen', state.screenId, data)
                     else
-                        TriggerServerEvent('movie-player:placeScreen', data, state.url or '')
+                        TriggerServerEvent('ta-movie-player:placeScreen', data, state.url or '')
                     end
                     stopPlacement()
                 else
@@ -1781,12 +1781,12 @@ local function registerTargetOptions()
 
     -- 参加時は自分と ox_target の両方の起動イベントから呼ばれることがあるので、
     -- 先に同じ名前のオプションを外してから足す（二重登録の警告を出さない）
-    exports.ox_target:removeGlobalOption({ 'movie-player:screen-panel', 'movie-player:screen-move' })
+    exports.ox_target:removeGlobalOption({ 'ta-movie-player:screen-panel', 'ta-movie-player:screen-move' })
 
     local lastAimed = nil
     exports.ox_target:addGlobalOption({
         {
-            name = 'movie-player:screen-panel',
+            name = 'ta-movie-player:screen-panel',
             icon = 'fa-solid fa-tv',
             label = 'スクリーンを操作する',
             canInteract = function()
@@ -1800,7 +1800,7 @@ local function registerTargetOptions()
             end,
         },
         {
-            name = 'movie-player:screen-move',
+            name = 'ta-movie-player:screen-move',
             icon = 'fa-solid fa-up-down-left-right',
             label = 'スクリーンの位置・大きさを変える',
             canInteract = function()
@@ -1901,7 +1901,7 @@ AddEventHandler('onClientResourceStart', function(resourceName)
     if resourceName == GetCurrentResourceName() then
         registerSuggestions()
         registerTargetOptions()
-        TriggerServerEvent('movie-player:requestScreens')
+        TriggerServerEvent('ta-movie-player:requestScreens')
     elseif resourceName == 'chat' then
         registerSuggestions()
     elseif resourceName == 'ox_target' then
